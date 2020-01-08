@@ -6,38 +6,41 @@ import com.gaufoo.cache.{Block, Cache}
 
 import scala.util.Random
 
-class Accessor(_cache: Cache, _root: BlockID) {
+class Accessor(cache: Cache, root: BlockID) {
   def get(key: Key): Option[Value] = {
-    var blk = _fetchBlock(_root)
+    var blk = fetchBlock(root)
 
     blk.rwLock.readLock().lock()
     while (blk.blockType == BLK_INTERNAL) {
-      val (_, value) = blk.tree.minAfter(key).get
+      val o = blk.tree.minAfter(key)
       blk.rwLock.readLock().unlock()
-      _drop(blk)
+      if (o.isEmpty) return None
 
-      val nextBlockId = Utils.bytesToInt(value)
-      blk = _fetchBlock(nextBlockId)
+      val value = o.get._2
+      drop(blk)
+
+      val nextBlockId = Utils.bytesToLong(value)
+      blk = fetchBlock(nextBlockId)
       blk.rwLock.readLock().lock()
     }
 
     assert(blk.blockType == BLK_LEAF)
     val value = blk.tree.get(key)
     blk.rwLock.readLock().unlock()
-    _drop(blk)
+    drop(blk)
 
     value
   }
 
-  private def _fetchBlock(blockId: BlockID): Block = {
-    var res = _cache.fetch(blockId)
+  private[this] def fetchBlock(blockId: BlockID): Block = {
+    var res = cache.fetch(blockId)
     while (res.isEmpty) {
       Thread.sleep(Random.nextLong(1000))
-      res = _cache.fetch(blockId)
+      res = cache.fetch(blockId)
     }
     res.get
   }
 
-  private def _drop(block: Block): Unit =
-    _cache.drop(block)
+  private[this] def drop(block: Block): Unit =
+    cache.drop(block)
 }

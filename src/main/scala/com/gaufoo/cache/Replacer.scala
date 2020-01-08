@@ -2,23 +2,22 @@ package com.gaufoo.cache
 
 import com.gaufoo.Config.BlockID
 
+import scala.collection.mutable
+
 class Replacer {
-  private var _list = List[BlockID]()
+  private[this] val list = mutable.ArrayDeque[BlockID]()
 
   def add(blockId: BlockID): Unit =
-    _list = _list.appended(blockId)
+    list += blockId
 
   def evict: Option[BlockID] =
-    if (_list.isEmpty) None
+    if (list.isEmpty) None
     else {
-      val r = _list.head
-      _list = _list.tail
+      val r = list.removeHead()
       Option(r)
     }
 
   def remove(blockId: BlockID): Unit = {
-    val idx = _list.indexOf(blockId)
-    assert(idx >= 0)
-    _list = _list.take(idx) ++ _list.drop(idx + 1)
+    list.removeFirst(blockId == _)
   }
 }

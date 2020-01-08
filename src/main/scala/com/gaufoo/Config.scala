@@ -5,14 +5,16 @@ object Config {
   type Value   = Array[Byte]
   type BlockID = Long
 
-  val K: Int = 1024
-  val M: Int = 1024 * K
-  val G: Int = 1024 * M
+  val K: Int = (1 << 10)
+  val M: Int = (1 << 10) * K
+  val G: Int = (1 << 10) * M
 
-  val BLOCK_SIZE: Int  = 4 * K
-  val BLOCK_COUNT: Int = (1 * G) / BLOCK_SIZE
+  val BLOCK_SIZE: Int  = 8 * K
+  val CACHED_BLOCK_COUNT: Int = (1 * G) / BLOCK_SIZE
 
   val BLK_UNKNOWN: Byte  = 0
   val BLK_INTERNAL: Byte = 1
   val BLK_LEAF: Byte     = 2
+
+  val SORT_PHASE_THRESHOLDS: Int = 20 * M
 }

@@ -10,73 +10,73 @@ import com.gaufoo.Utils
 
 import scala.concurrent.ExecutionContext
 
-class Cache(_path: String) {
-  private var _freeList  = List.fill(BLOCK_COUNT)(new Block)
-  private val _blockPool = new BlockPool
-  private val _replacer  = new Replacer
+class Cache(path: String) {
+  private[this] var freeList  = List.fill(CACHED_BLOCK_COUNT)(new Block)
+  private[this] val blockPool = new BlockPool
+  private[this] val replacer  = new Replacer
 
-  private val _mutex            = new Object
-  private val _executionContext = ExecutionContext.fromExecutor(Executors.newFixedThreadPool(10))
+  private[this] val mutex            = new Object
+  private[this] val executionContext = ExecutionContext.fromExecutor(Executors.newFixedThreadPool(10))
 
-  def fetch(blockId: BlockID): Option[Block] = _mutex.synchronized {
+  def fetch(blockId: BlockID): Option[Block] = mutex.synchronized {
 
     // Case 1: the block is cached
-    val pooled = _blockPool.get(blockId)
+    val pooled = blockPool.get(blockId)
     if (pooled.nonEmpty) {
       val res = pooled.get
       if (res.pinCount == 0)
-        _replacer.remove(res.blockId)
+        replacer.remove(res.blockId)
       res.pinCount += 1
       return Option(res)
     }
 
     // Case 2: pick a block from the non-empty free list
-    if (_freeList.nonEmpty) {
-      val res = _freeList.head
-      _freeList = _freeList.tail
-      _initBlock(blockId, res)
+    if (freeList.nonEmpty) {
+      val res = freeList.head
+      freeList = freeList.tail
+      initBlock(blockId, res)
       return Option(res)
     }
 
     // Case 3: fetch a block by evicting an inactive block
-    val evicted = _replacer.evict
+    val evicted = replacer.evict
     if (evicted.nonEmpty) {
-      val res = _blockPool.remove(evicted.get)
-      _initBlock(blockId, res)
+      val res = blockPool.remove(evicted.get)
+      initBlock(blockId, res)
       return Option(res)
     }
 
     None
   }
 
-  def drop(block: Block): Unit = _mutex.synchronized {
+  def drop(block: Block): Unit = mutex.synchronized {
     block.pinCount -= 1
     if (block.pinCount == 0)
-      _replacer.add(block.blockId)
+      replacer.add(block.blockId)
   }
 
-  private def _initBlock(blockId: BlockID, block: Block): Unit = {
+  private[this] def initBlock(blockId: BlockID, block: Block): Unit = {
     block.blockId = blockId
     block.pinCount = 1
 
     val locked = new AtomicBoolean(false)
-    _executionContext.execute(() => {
+    executionContext.execute(() => {
       block.rwLock.writeLock().lock()
       locked.set(true)
 
-      try _buildTreeFromFile(block)
+      try buildTreeFromFile(block)
       finally block.rwLock.writeLock().unlock()
     })
     while (!locked.get) { /* Ensure the block is initialized before the following reads. */ }
 
-    _blockPool.add(blockId, block)
+    blockPool.add(blockId, block)
   }
 
-  private def _buildTreeFromFile(block: Block): Unit = {
+  private[this] def buildTreeFromFile(block: Block): Unit = {
     block.tree.clear()
 
-    val path = Paths.get(_path, block.blockId.toString)
-    val bis  = new BufferedInputStream(new FileInputStream(path.toFile))
+    val file = Paths.get(path, block.blockId.toString).toFile
+    val bis  = new BufferedInputStream(new FileInputStream(file))
 
     def getInt: Int                      = Utils.getInt(bis)
     def getBytes(size: Int): Array[Byte] = Utils.getBytes(bis, size)

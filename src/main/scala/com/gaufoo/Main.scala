@@ -10,28 +10,50 @@ import com.gaufoo.cache.Cache
 import com.gaufoo.pre_process.PreProcessor
 
 import scala.concurrent.ExecutionContext
+import scala.util.Random
 
 object Main {
+  def preProcess(): Unit = {
+    val p = new PreProcessor(new File("/home/gaufoo/Desktop/tmp/test-data.dat"), Paths.get("/home/gaufoo/Desktop/tmp"))
+    p.process()
+  }
+
   def main(args: Array[String]): Unit = {
+//    preProcess()
 
-//    val p = new PreProcessor(new File("/home/gaufoo/Desktop/tmp/bigfile.dat"), Paths.get("/home/gaufoo/Desktop/tmp"))
-//    p.process()
+    val cache    = new Cache("/home/gaufoo/Desktop/tmp")
+    val accessor = new Accessor(cache, 0L)
 
-    val executionContext = ExecutionContext.fromExecutor(Executors.newFixedThreadPool(10))
+    /* - multi-thread random read - */
+    val ec = ExecutionContext.fromExecutor(Executors.newCachedThreadPool())
+    for { _ <- 0 to 20 } ec.execute(() => {
+      val start = System.currentTimeMillis()
+      for { _ <- 0 to 1000000 } {
+        val i     = Random.nextInt(10000000)
+        val bytes = i.toString.toCharArray.map(_.toByte)
+        assert(accessor.get(bytes).get.sameElements(bytes))
+      }
+      val stop = System.currentTimeMillis()
+      println(s"spent: ${stop - start}")
+    })
 
-    val accessor = new Accessor(new Cache("/home/gaufoo/Desktop/tmp"), 0L)
+    /* - single-thread random read - */
+//    val start = System.currentTimeMillis()
+//    for { _ <- 0 until 500000 } {
+//      val i     = Random.nextInt(10000000)
+//      val bytes = i.toString.toCharArray.map(_.toByte)
+//      assert(accessor.get(bytes).get.sameElements(bytes))
+//    }
+//    val stop = System.currentTimeMillis()
+//    println(s"spent: ${stop - start}")
 
-    for {j <- 0 until 5000000 / 50000} {
-      executionContext.execute(() => {
-        for (i <- j * 50000 + 0 until j * 50000 + 50000) {
-          val a: Option[Value] = accessor.get(i.toString.getBytes())
-          if (a.isEmpty) {
-            println(i)
-          }
-        }
-        println("done")
-      })
-    }
-
+     /* - single-thread seq read - */
+//        val start = System.currentTimeMillis()
+//        for { i <- 0 until 500000 } {
+//          val bytes = i.toString.toCharArray.map(_.toByte)
+//          assert(accessor.get(bytes).get.sameElements(bytes))
+//        }
+//        val stop = System.currentTimeMillis()
+//        println(s"spent: ${stop - start}")
   }
 }

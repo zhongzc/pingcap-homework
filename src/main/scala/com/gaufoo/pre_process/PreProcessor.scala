@@ -37,7 +37,7 @@ class PreProcessor(file: File, targetPath: Path) {
       val (key, value) = (getBytes(getInt), getBytes(getInt))
       buffer.enqueue((key, value))
 
-      // over the thresholds, dump a sorted file
+      // while over the thresholds, dump a sorted file
       if (readCnt > SORT_PHASE_THRESHOLDS) {
         sortedFiles = dumpSortedKV(
           buffer,
@@ -54,7 +54,6 @@ class PreProcessor(file: File, targetPath: Path) {
       Utils.intToBytes(buffer.length),
       sortedFiles.length
     ) :: sortedFiles
-    System.gc()
 
     bis.close()
     sortedFiles.toArray
@@ -63,8 +62,6 @@ class PreProcessor(file: File, targetPath: Path) {
   private[this] def buildIndex(files: Array[File]): Unit = {
     val iss    = files.map(f => new BufferedInputStream(new FileInputStream(f)))
     val counts = iss.map(is => Utils.getInt(is))
-    var tt     = counts.sum
-    println(tt) // DEBUG
     val queue = mutable.PriorityQueue[(Key, Value, Int)]()(
       implicitly[Ordering[(Key, Value, Int)]].reverse // lowest
     )
@@ -82,7 +79,6 @@ class PreProcessor(file: File, targetPath: Path) {
     def getMin: Option[(Key, Value)] =
       if (queue.isEmpty) None
       else {
-        tt -= 1
         val (k, v, i) = queue.dequeue()
         retrieveKV(i)
         Option((k, v))
@@ -107,18 +103,13 @@ class PreProcessor(file: File, targetPath: Path) {
 
     iss.foreach(_.close())
     files.foreach(_.delete())
-    println(tt) // DEBUG
   }
 
   private[this] class InternalBlockBuilder {
-    private[this] val leveledBuffers =
-      mutable.ArrayBuffer[ByteBuffer]()
-    private[this] val leveledByteCounts =
-      mutable.ArrayBuffer[Int]()
-    private[this] val leveledKVCounts =
-      mutable.ArrayBuffer[Int]()
-    private[this] val leveledMarkKeys =
-      mutable.ArrayBuffer[Key]()
+    private[this] val leveledBuffers    = mutable.ArrayBuffer[ByteBuffer]()
+    private[this] val leveledByteCounts = mutable.ArrayBuffer[Int]()
+    private[this] val leveledKVCounts   = mutable.ArrayBuffer[Int]()
+    private[this] val leveledMarkKeys   = mutable.ArrayBuffer[Key]()
 
     def put(markKey: Key, blockID: BlockID): BlockID =
       recHandleHierarchy(0, markKey, blockID)

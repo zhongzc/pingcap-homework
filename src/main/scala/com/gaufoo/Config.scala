@@ -16,5 +16,5 @@ object Config {
   val BLK_INTERNAL: Byte = 1
   val BLK_LEAF: Byte     = 2
 
-  val SORT_PHASE_THRESHOLDS: Int = 20 * M
+  val SORT_PHASE_THRESHOLDS: Int = 1 * G
 }

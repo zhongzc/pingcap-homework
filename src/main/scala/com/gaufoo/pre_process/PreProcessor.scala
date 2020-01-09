@@ -3,15 +3,19 @@ package com.gaufoo.pre_process
 import java.io._
 import java.nio.ByteBuffer
 import java.nio.file.Path
+
 import util.control.Breaks._
-import com.gaufoo.BytesOrdering._
+import com.gaufoo.util.BytesOrdering._
 import com.gaufoo.Config._
-import com.gaufoo.Utils
+import com.gaufoo.util.Utils
 
 import scala.collection.mutable
 
 class PreProcessor(file: File, targetPath: Path) {
-  def process(): Unit = buildIndex(sort())
+  def process(): Unit = {
+    buildIndex(sort())
+    println(s"process(): index construction completed, max KV Count: $maxKVCount")
+  }
 
   private[this] def sort(): Array[File] = {
     val bis = new BufferedInputStream(new FileInputStream(file))
@@ -242,6 +246,8 @@ class PreProcessor(file: File, targetPath: Path) {
     KVCount: Int,
     KVBuffer: ByteBuffer
   ): Unit = {
+    updateMaxKVCount(KVCount)
+
     val blockFile = targetPath.resolve(blockID.toString).toFile
     val os        = new BufferedOutputStream(new FileOutputStream(blockFile))
     os.write(Array(blockType))
@@ -273,4 +279,9 @@ class PreProcessor(file: File, targetPath: Path) {
     bos.close()
     sortedFile
   }
+
+  private[this] var maxKVCount = 0
+  private[this] def updateMaxKVCount(count: Int): Unit =
+    if (count > maxKVCount) maxKVCount = count
+
 }

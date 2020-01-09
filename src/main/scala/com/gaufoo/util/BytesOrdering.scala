@@ -1,4 +1,4 @@
-package com.gaufoo
+package com.gaufoo.util
 
 object BytesOrdering {
   implicit val o: Ordering[Array[Byte]] =
@@ -9,15 +9,15 @@ object BytesOrdering {
           else -1
         else if (b eq null) 1
         else {
-          val L = math.min(a.length, b.length)
+          val len = math.min(a.length, b.length)
           var i = 0
-          while (i < L) {
+          while (i < len) {
             if (a(i) < b(i)) return -1
             else if (b(i) < a(i)) return 1
             i += 1
           }
-          if (L < b.length) -1
-          else if (L < a.length) 1
+          if (len < b.length) -1
+          else if (len < a.length) 1
           else 0
         }
     }

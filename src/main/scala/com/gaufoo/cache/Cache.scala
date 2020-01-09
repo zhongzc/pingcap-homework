@@ -1,12 +1,11 @@
 package com.gaufoo.cache
 
-import java.io.{BufferedInputStream, FileInputStream}
-import java.nio.file.Paths
+import java.nio.file.{Files, Paths}
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 
 import com.gaufoo.Config._
-import com.gaufoo.Utils
+import com.gaufoo.util.Utils
 
 import scala.concurrent.ExecutionContext
 
@@ -64,7 +63,7 @@ class Cache(path: String) {
       block.rwLock.writeLock().lock()
       locked.set(true)
 
-      try buildTreeFromFile(block)
+      try loadFile(block)
       finally block.rwLock.writeLock().unlock()
     })
     while (!locked.get) { /* Ensure the block is initialized before the following reads. */ }
@@ -72,16 +71,25 @@ class Cache(path: String) {
     blockPool.add(blockId, block)
   }
 
-  private[this] def buildTreeFromFile(block: Block): Unit = {
-    block.tree.clear()
+  private[this] def loadFile(block: Block): Unit = {
+    block.KVs.clear()
 
-    val file = Paths.get(path, block.blockId.toString).toFile
-    val bis  = new BufferedInputStream(new FileInputStream(file))
+    val file       = Paths.get(path, block.blockId.toString)
+    val bytes      = Files.readAllBytes(file)
+    var byteOffset = 0
 
-    def getInt: Int                      = Utils.getInt(bis)
-    def getBytes(size: Int): Array[Byte] = Utils.getBytes(bis, size)
+    def getInt: Int = {
+      byteOffset += 4
+      val slice = bytes.slice(byteOffset - 4, byteOffset)
+      Utils.bytesToInt(slice)
+    }
+    def getBytes(size: Int): Array[Byte] = {
+      byteOffset += size
+      bytes.slice(byteOffset - size, byteOffset)
+    }
 
-    block.blockType = getBytes(1)(0)
+    block.blockType = bytes(0)
+    byteOffset += 1
 
     val totalCnt = getInt
     for (_ <- 0 until totalCnt) {
@@ -89,9 +97,7 @@ class Cache(path: String) {
       val key       = getBytes(keySize)
       val valueSize = getInt
       val value     = getBytes(valueSize)
-      block.tree.put(key, value)
+      block.KVs.put(key, value)
     }
-
-    bis.close()
   }
 }

@@ -1,4 +1,4 @@
-package com.gaufoo
+package com.gaufoo.util
 
 import java.io.InputStream
 import java.nio.ByteBuffer
@@ -45,4 +45,7 @@ object Utils {
     val buffer = ByteBuffer.allocate(8)
     buffer.putLong(long).array()
   }
+
+  def serializeInt(int: Int): Array[Byte] =
+    int.toString.toCharArray.map(_.toByte)
 }

@@ -1,18 +1,18 @@
 package com.gaufoo.access
 
 import com.gaufoo.Config._
-import com.gaufoo.Utils
 import com.gaufoo.cache.{Block, Cache}
+import com.gaufoo.util.Utils
 
 import scala.util.Random
 
-class Accessor(cache: Cache, root: BlockID) {
+class Accessor(cache: Cache, root: BlockID = 0L) {
   def get(key: Key): Option[Value] = {
     var blk = fetchBlock(root)
 
     blk.rwLock.readLock().lock()
     while (blk.blockType == BLK_INTERNAL) {
-      val o = blk.tree.minAfter(key)
+      val o = blk.KVs.minAfter(key)
       blk.rwLock.readLock().unlock()
       if (o.isEmpty) return None
 
@@ -25,7 +25,7 @@ class Accessor(cache: Cache, root: BlockID) {
     }
 
     assert(blk.blockType == BLK_LEAF)
-    val value = blk.tree.get(key)
+    val value = blk.KVs.get(key)
     blk.rwLock.readLock().unlock()
     drop(blk)
 

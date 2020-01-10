@@ -1,6 +1,7 @@
 package com.gaufoo.cache
 
-import java.nio.file.{Files, Paths}
+import java.io.File
+import java.nio.file.{Files, Path, Paths}
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -74,7 +75,7 @@ class Cache(path: String) {
   private[this] def loadFile(block: Block): Unit = {
     block.KVs.clear()
 
-    val file       = Paths.get(path, block.blockId.toString)
+    val file       = resolveBlockPath(block.blockId)
     val bytes      = Files.readAllBytes(file)
     var byteOffset = 0
 
@@ -99,5 +100,13 @@ class Cache(path: String) {
       val value     = getBytes(valueSize)
       block.KVs.put(key, value)
     }
+  }
+
+  private[this] def resolveBlockPath(blockID: BlockID): Path = {
+    val lvl0 = ((blockID >> 20) & ((1 << 10) - 1)).toString
+    val lvl1 = ((blockID >> 10) & ((1 << 10) - 1)).toString
+    val lvl2 = (blockID & ((1 << 10) - 1)).toString
+
+    Paths.get(path, lvl0, lvl1, lvl2)
   }
 }

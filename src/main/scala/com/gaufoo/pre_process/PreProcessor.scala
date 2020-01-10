@@ -2,7 +2,7 @@ package com.gaufoo.pre_process
 
 import java.io._
 import java.nio.ByteBuffer
-import java.nio.file.Path
+import java.nio.file.{Files, Path, Paths}
 
 import util.control.Breaks._
 import com.gaufoo.util.BytesOrdering._
@@ -61,6 +61,29 @@ class PreProcessor(file: File, targetPath: Path) {
 
     bis.close()
     sortedFiles.toArray
+  }
+
+  private[this] def dumpSortedKV(
+    buffer: mutable.PriorityQueue[(Key, Value)],
+    meta: Array[Byte],
+    id: Int
+  ): File = {
+    val filename   = "sorted-" + id.toString
+    val sortedFile = targetPath.resolve(filename).toFile
+    val bos        = new BufferedOutputStream(new FileOutputStream(sortedFile))
+
+    bos.write(meta)
+    while (buffer.nonEmpty) {
+      val (key, value) = buffer.dequeue()
+      bos.write(Utils.intToBytes(key.length))
+      bos.write(key)
+      bos.write(Utils.intToBytes(value.length))
+      bos.write(value)
+    }
+
+    bos.flush()
+    bos.close()
+    sortedFile
   }
 
   private[this] def buildIndex(files: Array[File]): Unit = {
@@ -248,7 +271,7 @@ class PreProcessor(file: File, targetPath: Path) {
   ): Unit = {
     updateMaxKVCount(KVCount)
 
-    val blockFile = targetPath.resolve(blockID.toString).toFile
+    val blockFile = resolveBlockFile(blockID)
     val os        = new BufferedOutputStream(new FileOutputStream(blockFile))
     os.write(Array(blockType))
     os.write(Utils.intToBytes(KVCount))
@@ -257,27 +280,14 @@ class PreProcessor(file: File, targetPath: Path) {
     os.close()
   }
 
-  private[this] def dumpSortedKV(
-    buffer: mutable.PriorityQueue[(Key, Value)],
-    meta: Array[Byte],
-    id: Int
-  ): File = {
-    val filename   = "sorted-" + id.toString
-    val sortedFile = targetPath.resolve(filename).toFile
-    val bos        = new BufferedOutputStream(new FileOutputStream(sortedFile))
+  private[this] def resolveBlockFile(blockID: BlockID): File = {
+    val lvl0 = (blockID >> 20) & ((1 << 10) - 1)
+    val lvl1 = (blockID >> 10) & ((1 << 10) - 1)
+    val lvl2 = blockID & ((1 << 10) - 1)
 
-    bos.write(meta)
-    while (buffer.nonEmpty) {
-      val (key, value) = buffer.dequeue()
-      bos.write(Utils.intToBytes(key.length))
-      bos.write(key)
-      bos.write(Utils.intToBytes(value.length))
-      bos.write(value)
-    }
-
-    bos.flush()
-    bos.close()
-    sortedFile
+    val path = targetPath.resolve(lvl0.toString).resolve(lvl1.toString)
+    val p    = Files.createDirectories(path)
+    p.resolve(lvl2.toString).toFile
   }
 
   private[this] var maxKVCount = 0
